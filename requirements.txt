@@ -1,0 +1,4 @@
+streamlit
+pyjanitor
+plotly
+millify
