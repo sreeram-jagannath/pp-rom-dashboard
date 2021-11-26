@@ -449,6 +449,7 @@ def get_part_number_mean_dnp(df, pn):
     mean_dnp = df.query('material_number == @pn')['per_unit_dnp_ron'].mean()
     return mean_dnp
 
+
 if __name__ == "__main__":
 
     data = get_data()
@@ -460,17 +461,19 @@ if __name__ == "__main__":
     data_filt = get_date_filtered_data(df=data, date_range=date_range)
     # st.write(data_filt.shape)
 
-    # st.markdown('<style>div.Widget.row-widget.stRadio > div{flex-direction:row;}</style>', unsafe_allow_html=True)
-    top_filter1, top_filter2 = st.columns(2)
-    profit_dnp_rrp = top_filter1.selectbox('Aggregate by', ('Profit', 'DNP', 'MRRP', 'Quantity'))
-    cumm_perc_slider = top_filter2.slider('<= Cumulative Percentage', 0, 100, 60, step=5)
+    st.markdown(f"<h2 style='text-align: center;'>Overall Stats</h2>", unsafe_allow_html=True)
+
+
+    _, overall_metric1, _, overall_metric2, _ = st.columns(5)
+    overall_metric1.metric('Unique Part Families', data_filt['description_pfc'].nunique())
+    overall_metric2.metric('Unique Part Numbers', data_filt['material_number'].nunique())
+    
+    agg_filter, _, top_family_df_col = st.columns([1.5, 1, 2])
+    profit_dnp_rrp = agg_filter.selectbox('Aggregate by', ('Profit', 'DNP', 'MRRP', 'Quantity'))
+    cumm_perc_slider = agg_filter.slider('<= Cumulative Percentage', 0, 100, 60, step=5)
 
     top_familes = get_top_families(df=data_filt, cumm_percentage=cumm_perc_slider, type=profit_dnp_rrp)
-    top_fam_df, overall_metrics = st.columns([2, 1])
-    top_fam_df.dataframe(top_familes)
-    
-    overall_metrics.metric('Total Part Families', data_filt['description_pfc'].nunique())
-    overall_metrics.metric('Total Part Numbers', data_filt['material_number'].nunique())
+    top_family_df_col.dataframe(top_familes)
 
     top_family_demand_trends = get_family_trends_plot(df=data_filt, type=profit_dnp_rrp)
     st.plotly_chart(top_family_demand_trends, use_container_width=True)
@@ -545,7 +548,7 @@ if __name__ == "__main__":
     demand_chart = get_demand_price_chart(df=demand_df, corr=quant_dnp_corr)
     st.plotly_chart(demand_chart, use_container_width=True)
 
-    st.markdown(f"<h2 style='text-align: center;'>Market Basket</h2>", unsafe_allow_html=True)
+    st.markdown(f"<h2 style='text-align: center;'>Market Basket Analysis</h2>", unsafe_allow_html=True)
     st.success(f'Which part numbers are transacted together with material number {part_number}?')
     combinations = get_frequent_combinations(data_filt, pn=part_number, pn_trans=part_num_transactions)
     st.dataframe(combinations)
