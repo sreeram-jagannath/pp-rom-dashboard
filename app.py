@@ -5,17 +5,14 @@ top part numbers in family pie chart
 
 '''
 
-from os import rename
-from numpy import number
 import pandas as pd
 import janitor as jn
 import streamlit as st
 import plotly.express as px
-from plotly.subplots import make_subplots
 import plotly.graph_objects as go
 
 from millify import millify
-from datetime import datetime, date
+from plotly.subplots import make_subplots
 
 st.set_page_config(layout="wide")
 
