@@ -44,6 +44,7 @@ def get_top_part_numbers(df, pf):
     return top_parts
 
 # demand price dataframe for a particular part number
+@st.cache
 def get_demand_price_df(df, pn):
     groupby_cols = [
         'material_number',
@@ -255,6 +256,7 @@ def get_top_parts_df_in_family(df, pn_list):
     # return top_parts
 
 # frequently transacted parts numbers along with the target part number
+@st.cache
 def get_frequent_combinations(df, pn, pn_trans):
     rename_cols = {
         'material_number_y': 'Material Number',
@@ -297,8 +299,6 @@ def get_frequent_combinations(df, pn, pn_trans):
         .drop('material_number', axis=1)
         .rename(columns=rename_cols)
     )
-
-    # number_name_family['% Transactions'] = number_name_family['Num of Transactions'] * 100 / pn_trans
 
 
     return number_name_family
@@ -350,9 +350,107 @@ def get_correlation(df):
     # st.write(corr)
     return f'{corr:.2f}'
 
+# get top families by different categories (DNP, Profits, Qty)
+def get_top_families(df, cumm_percentage=50, type='DNP'):
+    type_map = {
+        'Profit': 'profits',
+        'Quantity': 'quantity',
+        'MRRP': 'recommended_rp_ron',
+        'DNP': 'dealer_np_ron',
+    }
 
+    rename_cols = {
+        'quant_perc': '% Value',
+        'quant_cumm_perc': '% Cumulative value',
+        'value': 'Value',
+        'description_pfc': 'Family Name',
+    }
+
+    price_col = type_map[type]
+
+    df['profits'] = df['dealer_np_ron'] - df['total_purchase_price_ron']
+    top_families = (
+        df
+        .groupby('description_pfc')[price_col]
+        .sum()
+        .reset_index(name='value')
+        .sort_values(by='value', ascending=False)
+        .assign(
+            quant_perc=lambda x: 100 * x['value'] / df[price_col].sum(),
+            quant_cumm_perc=lambda x: x['quant_perc'].cumsum(),
+        )
+        .reset_index(drop=True)
+        .query('quant_cumm_perc <= @cumm_percentage')
+        .rename(columns=rename_cols)
+    )
+
+    top_families['Value'] = top_families['Value'].apply(millify)
+    return top_families
+
+# Demand plots for top 10 families
+def get_family_trends_plot(df, type='DNP'):
+    top_families = get_top_families(df, cumm_percentage=100, type=type)['Family Name'].values.tolist()[:10]
+
+    rename_cols = {
+        'conf_month': 'Month',
+        'quantity': 'Quantity',
+        'description_pfc': 'Family Name'
+    }
+
+    family_demand = (
+        df
+        .query('description_pfc in @top_families')
+        .sort_values(by='quotation_confirmation_date_from_tme')
+        .assign(conf_month = lambda x: x['quotation_confirmation_date_from_tme'].dt.strftime('%m-%Y'))
+        .groupby(['description_pfc', 'conf_month'])['quantity']
+        .sum()
+        .reset_index()
+        .rename(columns=rename_cols)
+    )
+
+    fig = px.line(family_demand, x='Month', y='Quantity', color='Family Name')
+    fig.update_layout(
+        title='Demand trend for top 10 part families'
+    )
+    return fig
+
+# box plot distributions for top 10 families
+def get_boxplot_for_top_families(df, type='DNP'):
+    top_families = get_top_families(df, cumm_percentage=100, type=type)['Family Name'].values.tolist()[:10]
+    df_filt = (
+        df
+        .query('description_pfc in @top_families')
+        .select_columns(['description_pfc', 'per_unit_dnp_ron'])
+        .drop_duplicates()
+    )
+    # st.write(df_filt.shape)
+
+    fig = px.box(df_filt, x='description_pfc', y='per_unit_dnp_ron')
+    fig.update_layout(
+        title={
+            'text': 'Distribution of DNP',
+            'x': 0.5,
+            'xanchor': 'center',
+        },
+        yaxis_title='Per Unit Dealer Net Price (RON)',
+        xaxis_title='',
+        width=450,
+        # height=300,
+    )
+    return fig
+
+# is the part family in top 60 % DNP (metric)
 def is_in_top_60_perc_family(df, pf):
-    pass
+    top_families = get_top_families(df=df, cumm_percentage=60, type='DNP')
+    if pf in top_families['Family Name'].values.tolist():
+        return 'Yes'
+    else:
+        return 'No'
+
+# mean dealer net price of a part number (metric)
+def get_part_number_mean_dnp(df, pn):
+    mean_dnp = df.query('material_number == @pn')['per_unit_dnp_ron'].mean()
+    return mean_dnp
 
 if __name__ == "__main__":
 
@@ -364,6 +462,24 @@ if __name__ == "__main__":
     # print(date_range)
     data_filt = get_date_filtered_data(df=data, date_range=date_range)
     # st.write(data_filt.shape)
+
+    # st.markdown('<style>div.Widget.row-widget.stRadio > div{flex-direction:row;}</style>', unsafe_allow_html=True)
+    top_filter1, top_filter2 = st.columns(2)
+    profit_dnp_rrp = top_filter1.selectbox('Aggregate by', ('Profit', 'DNP', 'MRRP', 'Quantity'))
+    cumm_perc_slider = top_filter2.slider('<= Cumulative Percentage', 0, 100, 60, step=5)
+
+    top_familes = get_top_families(df=data_filt, cumm_percentage=cumm_perc_slider, type=profit_dnp_rrp)
+    top_fam_df, overall_metrics = st.columns([2, 1])
+    top_fam_df.dataframe(top_familes)
+    
+    overall_metrics.metric('Total Part Families', data_filt['description_pfc'].nunique())
+    overall_metrics.metric('Total Part Numbers', data_filt['material_number'].nunique())
+
+    top_family_demand_trends = get_family_trends_plot(df=data_filt, type=profit_dnp_rrp)
+    st.plotly_chart(top_family_demand_trends, use_container_width=True)
+
+    boxplot_for_top_families = get_boxplot_for_top_families(df=data_filt, type=profit_dnp_rrp)
+    st.plotly_chart(boxplot_for_top_families, use_container_width=True)
 
     unique_pfc = data['description_pfc'].unique().tolist()
     # num_unique_pfc = data_filt['description_pfc'].nunique()
@@ -380,7 +496,7 @@ if __name__ == "__main__":
 
     st.markdown(f"<h2 style='text-align: center;'>{product_family}</h2>", unsafe_allow_html=True)
 
-    fam_metric1, fam_metric2, fam_metric3, fam_metric4 = st.columns([1, 1, 1, 1])
+    fam_metric1, fam_metric2, fam_metric3, fam_metric4, fam_metric5 = st.columns(5)
     num_parts = get_num_parts_in_family(df=data_filt, pf=product_family)
     fam_metric1.metric('# Parts', num_parts)
 
@@ -393,6 +509,9 @@ if __name__ == "__main__":
     perc_rev = revenue * 100 / data_filt['dealer_np_ron'].sum()
     fam_metric4.metric('% Revenue', f'{perc_rev:.2f}')
     
+    is_top_60_perc = is_in_top_60_perc_family(df=data_filt, pf=product_family)
+    fam_metric5.metric('In top 60%', is_top_60_perc)
+
     # top_parts, box_dist = st.columns([1.5, 1])
     # st.dataframe(get_demand_price_df(df=data_filt, pn=part_number))
     top_parts_in_family = get_top_parts_df_in_family(df=data_filt, pn_list=top_part_numbers)
@@ -413,14 +532,16 @@ if __name__ == "__main__":
     name.info(f'Part Name: {part_name}')
     family.warning(f'Part Family: {part_family}')
 
-    pn_metric1, pn_metric2, pn_metric3 = st.columns(3)
+    pn_metric1, pn_metric2, pn_metric3, pn_metric4 = st.columns(4)
     part_num_transactions = get_part_num_transactions(df=data_filt, pn=part_number)
     part_num_revenue = get_part_number_revenue(df=data_filt, pn=part_number)
     part_num_total_quant = get_part_num_quantity(df=data_filt, pn=part_number)
+    part_num_mean_dnp = get_part_number_mean_dnp(df=data_filt, pn=part_number)
 
     pn_metric1.metric('# Transactions',  millify(part_num_transactions))
     pn_metric2.metric('Revenue (RON)', millify(part_num_revenue))
     pn_metric3.metric('Total Quantity Sold', millify(part_num_total_quant))
+    pn_metric4.metric('Mean DNP (RON)', millify(part_num_mean_dnp))
 
     demand_df = get_demand_price_df(df=data_filt, pn=part_number)
     quant_dnp_corr = get_correlation(demand_df)
