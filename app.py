@@ -5,6 +5,7 @@ top part numbers in family pie chart
 
 '''
 
+from os import read
 import pandas as pd
 import janitor as jn
 import streamlit as st
@@ -162,7 +163,7 @@ def get_price_dist_boxplot(df, pf):
     )
     # st.write(df_filt.shape)
 
-    fig = px.box(df_filt, x='description_pfc', y='per_unit_dnp_ron')
+    fig = px.box(df_filt, x='description_pfc', y='per_unit_dnp_ron', )
     fig.update_layout(
         title={
             'text': 'Distribution of DNP',
@@ -419,10 +420,11 @@ def get_boxplot_for_top_families(df, type='DNP'):
         .query('description_pfc in @top_families')
         .select_columns(['description_pfc', 'per_unit_dnp_ron'])
         .drop_duplicates()
+        .rename_column('description_pfc', 'Family Name')
     )
     # st.write(df_filt.shape)
 
-    fig = px.box(df_filt, x='description_pfc', y='per_unit_dnp_ron')
+    fig = px.box(df_filt, x='Family Name', y='per_unit_dnp_ron', color='Family Name')
     fig.update_layout(
         title={
             'text': 'Distribution of DNP',
@@ -449,6 +451,49 @@ def get_part_number_mean_dnp(df, pn):
     mean_dnp = df.query('material_number == @pn')['per_unit_dnp_ron'].mean()
     return mean_dnp
 
+# market basket for product families
+@st.cache
+def get_frequent_product_families_df(df, pf):
+    df1 = df.select_columns(['quotation_number', 'description_pfc']).drop_duplicates()
+    
+    family_transactions = get_num_of_family_transactions(df1, family=pf)
+
+    rename_cols = {
+        'description_pfc_y': 'Family Name',
+        'quotation_number': 'Num of Transactions',
+        'perc_transaction': '% Transactions',
+    }
+
+    top_families_combination = (
+        pd.merge(df1, df1, on='quotation_number')
+        .groupby(['description_pfc_x', 'description_pfc_y'])
+        .count()
+        .reset_index()
+        .sort_values(by='quotation_number', ascending=False)
+        .filter_on('description_pfc_x != description_pfc_y')
+        .query('description_pfc_x == @pf')
+        .drop('description_pfc_x', axis=1)
+        .assign(perc_transaction=lambda x:x['quotation_number'] * 100 / family_transactions)
+        .head(15)
+        .reset_index(drop=True)
+        .rename(columns=rename_cols)
+    ) 
+
+    return top_families_combination
+
+# pie chart for frequent product families
+def get_family_frequent_pie_chart(df):
+    
+    fig = px.pie(df, values='Num of Transactions', names='Family Name')
+    fig.update_layout(
+        title={
+            'text': 'Top 15 Frequently bought product families along with this product family',
+            'x': 0.5,
+            'xanchor': 'center'
+        }
+    )
+    return fig
+
 
 if __name__ == "__main__":
 
@@ -462,7 +507,6 @@ if __name__ == "__main__":
     # st.write(data_filt.shape)
 
     st.markdown(f"<h2 style='text-align: center;'>Overall Stats</h2>", unsafe_allow_html=True)
-
 
     _, overall_metric1, _, overall_metric2, _ = st.columns(5)
     overall_metric1.metric('Unique Part Families', data_filt['description_pfc'].nunique())
@@ -555,3 +599,10 @@ if __name__ == "__main__":
     
     comb_pie = get_frequent_pie_chart(combinations)
     st.plotly_chart(comb_pie, use_container_width=True)
+
+    st.success(f'Which part families are transacted together with {product_family}?')
+    freq_fam1, freq_fam2 = st.columns([1, 1])
+    freq_prod_families_df = get_frequent_product_families_df(df=data_filt, pf=product_family)
+    freq_family_pie = get_family_frequent_pie_chart(df=freq_prod_families_df)
+    freq_fam1.dataframe(freq_prod_families_df, height=400)
+    freq_fam2.plotly_chart(freq_family_pie)
