@@ -34,7 +34,7 @@ def get_top_part_numbers(df, pf):
     return top_parts
 
 # demand price dataframe for a particular part number
-@st.cache
+@st.cache(show_spinner=False)
 def get_demand_price_df(df, pn):
     groupby_cols = [
         'material_number',
@@ -194,6 +194,7 @@ def get_family_revenue(df, family):
     return revenue
 
 # get the dataframe with corr, cov, total quantity, num of months for a part family
+@st.cache(show_spinner=False)
 def get_top_parts_df_in_family(df, pn_list):
     parts_corr = []
 
@@ -231,38 +232,6 @@ def get_top_parts_df_in_family(df, pn_list):
 
     top_parts_corr = pd.DataFrame(data=parts_corr, columns=columns)
     return top_parts_corr
-
-
-# def get_top_parts_in_family(df, family):
-    # rename_cols = {
-    #     'material_number': 'Material Number',
-    #     'total_dnp': 'Total DNP (RON)',
-    #     'dnp_perc': 'DNP %',
-    #     'dnp_cumm_perc': 'Cumulative DNP %',
-    #     'total_quantity': 'Total Quantity'
-    # }
-
-    # top_parts = (
-    #     df
-    #     .query('description_pfc == @family')
-    #     .groupby('material_number')
-    #     .agg(
-    #         total_quantity = ('quantity', 'sum'),
-    #         num_months = ('quantity', 'count'),
-    #         total_dnp = ('dealer_np_ron', 'sum')
-    #     )
-    #     .reset_index()
-    #     .sort_values(by='total_dnp', ascending=False)
-    #     .assign(
-    #         dnp_perc=lambda x: 100 * x['total_dnp'] / df['dealer_np_ron'].sum(),
-    #         dnp_cumm_perc=lambda x: x['dnp_perc'].cumsum(),
-    #     )
-    #     .reset_index(drop=True)
-    #     .query('dnp_cumm_perc <= 60')
-    #     .rename(columns=rename_cols)
-    # )
-
-    # return top_parts
 
 # frequently transacted parts numbers along with the target part number
 @st.cache
@@ -397,9 +366,7 @@ def get_top_families(df, cumm_percentage=50, type='DNP'):
     return top_families
 
 # Demand plots for top 10 families
-def get_family_trends_plot(df, type='DNP'):
-    top_families = get_top_families(df, cumm_percentage=100, type=type)['Family Name'].values.tolist()[:10]
-
+def get_family_demand_plots(df, top_fam):
     rename_cols = {
         'conf_month': 'Month',
         'quantity': 'Quantity',
@@ -408,8 +375,7 @@ def get_family_trends_plot(df, type='DNP'):
 
     family_demand = (
         df
-        .query('description_pfc in @top_families')
-        # .sort_values(by='quotation_confirmation_date_from_tme')
+        .query('description_pfc in @top_fam')
         .assign(conf_month = lambda x: x['quotation_confirmation_date_from_tme'].dt.strftime('%m-%Y'))
         .groupby(['description_pfc', 'conf_month'])['quantity']
         .sum()
@@ -421,17 +387,20 @@ def get_family_trends_plot(df, type='DNP'):
 
     fig = px.line(family_demand, x='Month', y='Quantity', color='Family Name')
     fig.update_layout(
-        title='Demand trend for top 10 part families',
+        title={
+            'text': 'Demand trend at a part family level',
+            'x': 0.5,
+            'xanchor': 'center',
+        },
         xaxis_title='',
     )
     return fig
 
 # box plot distributions for top 10 families
-def get_boxplot_for_top_families(df, type='DNP'):
-    top_families = get_top_families(df, cumm_percentage=100, type=type)['Family Name'].values.tolist()[:10]
+def get_boxplot_for_top_families(df, top_fam):
     df_filt = (
         df
-        .query('description_pfc in @top_families')
+        .query('description_pfc in @top_fam')
         .select_columns(['description_pfc', 'per_unit_dnp_ron'])
         .drop_duplicates()
         .rename_column('description_pfc', 'Family Name')
@@ -531,27 +500,30 @@ if __name__ == "__main__":
     profit_dnp_rrp = agg_filter.selectbox('Aggregate by', ('Profit', 'DNP', 'MRRP', 'Quantity'))
     cumm_perc_slider = agg_filter.slider('<= Cumulative Percentage', 0, 100, 60, step=5)
 
-    top_familes = get_top_families(df=data_filt, cumm_percentage=cumm_perc_slider, type=profit_dnp_rrp)
-    top_family_df_col.dataframe(top_familes)
-
-    top_family_demand_trends = get_family_trends_plot(df=data_filt, type=profit_dnp_rrp)
-    st.plotly_chart(top_family_demand_trends, use_container_width=True)
-
-    boxplot_for_top_families = get_boxplot_for_top_families(df=data_filt, type=profit_dnp_rrp)
-    st.plotly_chart(boxplot_for_top_families, use_container_width=True)
+    top_families = get_top_families(df=data_filt, cumm_percentage=cumm_perc_slider, type=profit_dnp_rrp)
+    top_family_df_col.dataframe(top_families)
 
     unique_pfc = data['description_pfc'].unique().tolist()
+    # fam_demand, set_default_button = st.columns([2, 1])
+    
+    top_families_multiselect = st.multiselect(
+        label='Family Name',
+        options=unique_pfc,
+        default=top_families['Family Name'].values.tolist()[:10],
+    )
+
+    top_family_demand_trends = get_family_demand_plots(df=data_filt, top_fam=top_families_multiselect)
+    st.plotly_chart(top_family_demand_trends, use_container_width=True)
+
+    boxplot_for_top_families = get_boxplot_for_top_families(df=data_filt, top_fam=top_families_multiselect)
+    st.plotly_chart(boxplot_for_top_families, use_container_width=True)
+
     # num_unique_pfc = data_filt['description_pfc'].nunique()
 
-    
-    # with st.sidebar:
     _, family_filter, _ = st.columns(3)
     product_family = family_filter.selectbox("Select Family Name:", unique_pfc, index=0)
     
     top_part_numbers = get_top_part_numbers(df=data_filt, pf=product_family)
-    # with st.sidebar:
-    #     part_number = st.selectbox("Select Part Number:", top_part_numbers, index=0)
-
 
     st.markdown(f"<h2 style='text-align: center;'>{product_family}</h2>", unsafe_allow_html=True)
 
@@ -573,8 +545,10 @@ if __name__ == "__main__":
 
     # top_parts, box_dist = st.columns([1.5, 1])
     # st.dataframe(get_demand_price_df(df=data_filt, pn=part_number))
-    top_parts_in_family = get_top_parts_df_in_family(df=data_filt, pn_list=top_part_numbers)
+    top_parts_in_family = get_top_parts_df_in_family(df=data_filt, pn_list=top_part_numbers[:20])
     st.dataframe(top_parts_in_family, height=400)
+    _, df_caption, _ = st.columns([2, 2, 1])
+    df_caption.caption('Top 20 part numbers in the family by revenue')
     
     # Box plot of price distributions in a family
     price_dist = get_price_dist_boxplot(df=data_filt, pf=product_family)
@@ -608,17 +582,20 @@ if __name__ == "__main__":
     demand_chart = get_demand_price_chart(df=demand_df, corr=quant_dnp_corr)
     st.plotly_chart(demand_chart, use_container_width=True)
 
-    st.markdown(f"<h2 style='text-align: center;'>Market Basket Analysis</h2>", unsafe_allow_html=True)
-    st.success(f'Which part numbers are transacted together with material number {part_number}?')
-    combinations = get_frequent_combinations(data_filt, pn=part_number, pn_trans=part_num_transactions)
-    st.dataframe(combinations)
-    
-    comb_pie = get_frequent_pie_chart(combinations)
-    st.plotly_chart(comb_pie, use_container_width=True)
+    _, mb_checkbox, _ = st.columns([2, 2, 1])
+    show_market_basket = mb_checkbox.checkbox('Show Market Basket Analysis (Disable for faster interactions)')
+    if show_market_basket:
+        st.markdown(f"<h2 style='text-align: center;'>Market Basket Analysis</h2>", unsafe_allow_html=True)
+        st.success(f'Which part numbers are transacted together with material number {part_number}?')
+        combinations = get_frequent_combinations(data_filt, pn=part_number, pn_trans=part_num_transactions)
+        st.dataframe(combinations)
+        
+        comb_pie = get_frequent_pie_chart(combinations)
+        st.plotly_chart(comb_pie, use_container_width=True)
 
-    st.success(f'Which part families are transacted together with {product_family}?')
-    freq_fam1, freq_fam2 = st.columns([1, 1])
-    freq_prod_families_df = get_frequent_product_families_df(df=data_filt, pf=product_family)
-    freq_family_pie = get_family_frequent_pie_chart(df=freq_prod_families_df)
-    freq_fam1.dataframe(freq_prod_families_df, height=400)
-    freq_fam2.plotly_chart(freq_family_pie)
+        st.success(f'Which part families are transacted together with {product_family}?')
+        freq_fam1, freq_fam2 = st.columns([1, 1])
+        freq_prod_families_df = get_frequent_product_families_df(df=data_filt, pf=product_family)
+        freq_family_pie = get_family_frequent_pie_chart(df=freq_prod_families_df)
+        freq_fam1.dataframe(freq_prod_families_df, height=400)
+        freq_fam2.plotly_chart(freq_family_pie)
