@@ -599,3 +599,4 @@ if __name__ == "__main__":
         freq_family_pie = get_family_frequent_pie_chart(df=freq_prod_families_df)
         freq_fam1.dataframe(freq_prod_families_df, height=400)
         freq_fam2.plotly_chart(freq_family_pie)
+        
