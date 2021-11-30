@@ -1,11 +1,3 @@
-'''
-which parts numbers were there in campaign for a duration?
-market basket analysis
-top part numbers in family pie chart 
-
-'''
-
-from os import read
 import pandas as pd
 import janitor as jn
 import streamlit as st
@@ -85,16 +77,37 @@ def get_demand_price_df(df, pn):
 
     return demand_price
 
+# gets all months demand and price by filling zero for the months we don't have data
+def get_all_months_demand_price_df(df):
+    all_months = pd.date_range(start='2019-07-01', end='2021-11-01', freq='MS')
+    # print(df)
+    df2 = (
+        df
+        .set_index('conf_month')
+        .reindex(all_months)
+        .reset_index()
+        .rename_column('index', 'conf_month')
+    )
+
+    df2['DNP per unit'] = df2['DNP per unit'].fillna(method='ffill')
+    df2['MRRP per unit'] = df2['MRRP per unit'].fillna(method='ffill')
+    df2['Quantity'] = df2['Quantity'].fillna(0)
+
+    return df2
+
 # plotly chart from the demand price dataframe
 def get_demand_price_chart(df, corr):
+    # get all months data (include 0 quantity also)
+    df2 = get_all_months_demand_price_df(df=df)
+
     # Create figure with secondary y-axis
     fig = make_subplots(specs=[[{ "secondary_y": True }]])
 
     # Add traces
     fig.add_trace(
         go.Scatter( 
-            x=df['conf_month'].values, 
-            y=df['Quantity'].values, 
+            x=df2['conf_month'].values, 
+            y=df2['Quantity'].values, 
             name="Quantity",
         ),
         secondary_y=False,
@@ -102,8 +115,8 @@ def get_demand_price_chart(df, corr):
 
     fig.add_trace(
         go.Scatter(
-            x=df['conf_month'].values, 
-            y=df['MRRP per unit'].values, 
+            x=df2['conf_month'].values, 
+            y=df2['MRRP per unit'].values, 
             name="MRRP per unit",
         ),
         secondary_y=True,
@@ -111,8 +124,8 @@ def get_demand_price_chart(df, corr):
 
     fig.add_trace(
         go.Scatter(
-            x=df['conf_month'].values, 
-            y=df['DNP per unit'].values, 
+            x=df2['conf_month'].values, 
+            y=df2['DNP per unit'].values, 
             name="DNP per unit",
         ),
         secondary_y=True,
@@ -121,12 +134,10 @@ def get_demand_price_chart(df, corr):
     fig.update_layout(
         title={
             'text': f'Correlation b/w Quantity & Per Unit DNP: {corr}',
-            'x': 0.075,
-            # 'xanchor': 'center',
-            'font_size': 20,
-            'font_family': 'Arial',
+            'y': 0.85,
+            # 'font_size': 20,
         },
-        xaxis_title='Month',
+        xaxis_title='',
         yaxis_title='Quantity',
         yaxis2_title='Per Unit Price (RON)',
     )
@@ -398,17 +409,20 @@ def get_family_trends_plot(df, type='DNP'):
     family_demand = (
         df
         .query('description_pfc in @top_families')
-        .sort_values(by='quotation_confirmation_date_from_tme')
+        # .sort_values(by='quotation_confirmation_date_from_tme')
         .assign(conf_month = lambda x: x['quotation_confirmation_date_from_tme'].dt.strftime('%m-%Y'))
         .groupby(['description_pfc', 'conf_month'])['quantity']
         .sum()
         .reset_index()
+        .change_type('conf_month', 'datetime64')
+        .sort_values(by='conf_month')
         .rename(columns=rename_cols)
     )
 
     fig = px.line(family_demand, x='Month', y='Quantity', color='Family Name')
     fig.update_layout(
-        title='Demand trend for top 10 part families'
+        title='Demand trend for top 10 part families',
+        xaxis_title='',
     )
     return fig
 
@@ -433,6 +447,7 @@ def get_boxplot_for_top_families(df, type='DNP'):
         },
         yaxis_title='Per Unit Dealer Net Price (RON)',
         xaxis_title='',
+        showlegend=False,
         width=450,
         # height=300,
     )
@@ -576,18 +591,19 @@ if __name__ == "__main__":
     name.info(f'Part Name: {part_name}')
     family.warning(f'Part Family: {part_family}')
 
-    pn_metric1, pn_metric2, pn_metric3, pn_metric4 = st.columns(4)
+    pn_metric1, pn_metric2, pn_metric3, pn_metric4, pn_metric5 = st.columns(5)
     part_num_transactions = get_part_num_transactions(df=data_filt, pn=part_number)
     part_num_revenue = get_part_number_revenue(df=data_filt, pn=part_number)
     part_num_total_quant = get_part_num_quantity(df=data_filt, pn=part_number)
     part_num_mean_dnp = get_part_number_mean_dnp(df=data_filt, pn=part_number)
-
-    pn_metric1.metric('# Transactions',  millify(part_num_transactions))
-    pn_metric2.metric('Revenue (RON)', millify(part_num_revenue))
-    pn_metric3.metric('Total Quantity Sold', millify(part_num_total_quant))
-    pn_metric4.metric('Mean DNP (RON)', millify(part_num_mean_dnp))
-
     demand_df = get_demand_price_df(df=data_filt, pn=part_number)
+
+    pn_metric1.metric('# Months', demand_df.shape[0])
+    pn_metric2.metric('# Transactions',  millify(part_num_transactions))
+    pn_metric3.metric('Total Quantity Sold', millify(part_num_total_quant))
+    pn_metric4.metric('Revenue (RON)', millify(part_num_revenue))
+    pn_metric5.metric('Mean DNP (RON)', millify(part_num_mean_dnp))
+
     quant_dnp_corr = get_correlation(demand_df)
     demand_chart = get_demand_price_chart(df=demand_df, corr=quant_dnp_corr)
     st.plotly_chart(demand_chart, use_container_width=True)
