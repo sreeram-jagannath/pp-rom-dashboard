@@ -15,11 +15,9 @@ st.set_page_config(
 
 @st.cache(show_spinner=False, allow_output_mutation=True)
 def get_data():
-    data = pd.read_csv('merged_data.csv') 
-    data['quotation_confirmation_date_from_tme'] = pd.to_datetime(data['quotation_confirmation_date_from_tme'], dayfirst=True)
-    
-    data['per_unit_rrp_ron'] = data['recommended_rp_ron'] / data['quantity']
-    data['per_unit_dnp_ron'] = data['dealer_np_ron'] / data['quantity']   
+    data = pd.read_csv('reconciled_data.csv') 
+    data['quotation_confirmation_date_from_tme'] = pd.to_datetime(data['quotation_confirmation_date_from_tme'])
+    data['purchase_order_date'] = pd.to_datetime(data['purchase_order_date'])
     
     return data
 
@@ -44,20 +42,20 @@ def get_demand_price_df(df, pn):
         'material_number',
         'conf_month',
     ]
-
+    
     agg_map = {
         'quantity': 'sum',
         'description_ro': 'first',
         'description_pfc': 'first',
         'unit_purchase_price_eur': 'mean',
-        'recommended_rp_ron': 'sum',
-        'dealer_np_ron': 'sum',
+        'per_unit_rrp_ron': 'mean',
+        'per_unit_dnp_ron': 'mean',
     }
-
+    
     rename_cols = {
         'quantity': 'Quantity',
-        'recommended_rp_per_unit_ron': 'MRRP per unit',
-        'dealer_np_per_unit_ron': 'DNP per unit',
+        'per_unit_rrp_ron': 'MRRP per unit',
+        'per_unit_dnp_ron': 'DNP per unit',
         'description_ro': 'Part Name',
         'description_pfc': 'Part Family',
     }
@@ -70,10 +68,6 @@ def get_demand_price_df(df, pn):
         .groupby(groupby_cols)
         .agg(agg_map)
         .reset_index()
-        .assign(
-            recommended_rp_per_unit_ron = lambda x: x['recommended_rp_ron'] / x['quantity'],
-            dealer_np_per_unit_ron = lambda x: x['dealer_np_ron'] / x['quantity'],
-        )
         .change_type('conf_month', 'datetime64')
         .sort_values(by='conf_month')
         .rename(columns=rename_cols)
@@ -164,7 +158,8 @@ def get_part_name_family(df, pn):
 # filter the dataframe for the given data range
 def get_date_filtered_data(df, date_range):
     mn_date, mx_date = date_range
-    filt_df = df.query('@mn_date <= quotation_confirmation_date_from_tme <= @mx_date')
+    mask = df['quotation_confirmation_date_from_tme'].dt.date.between(mn_date, mx_date)
+    filt_df = df.loc[mask].copy()
     return filt_df
 
 # get box plot of price distributions for a part family
@@ -486,13 +481,13 @@ def get_family_frequent_pie_chart(df):
 if __name__ == "__main__":
 
     data = get_data()
+    # st.dataframe(data.head())
 
     min_date = data['quotation_confirmation_date_from_tme'].min().date()
     max_date = data['quotation_confirmation_date_from_tme'].max().date()
+
     date_range = st.slider('Date Range', min_date, max_date, (min_date, max_date))
-    # print(date_range)
     data_filt = get_date_filtered_data(df=data, date_range=date_range)
-    # st.write(data_filt.shape)
 
     st.markdown(f"<h2 style='text-align: center;'>Overall Stats</h2>", unsafe_allow_html=True)
 
@@ -593,7 +588,8 @@ if __name__ == "__main__":
         st.markdown(f"<h2 style='text-align: center;'>Market Basket Analysis</h2>", unsafe_allow_html=True)
         st.success(f'Which part numbers are transacted together with material number {part_number}?')
         combinations = get_frequent_combinations(data_filt, pn=part_number, pn_trans=part_num_transactions)
-        st.dataframe(combinations)
+        _, comb_df_col, _ = st.columns([1, 8, 1])
+        comb_df_col.dataframe(combinations)
         
         comb_pie = get_frequent_pie_chart(combinations)
         st.plotly_chart(comb_pie, use_container_width=True)
