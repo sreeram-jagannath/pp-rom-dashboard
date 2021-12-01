@@ -519,7 +519,7 @@ if __name__ == "__main__":
 
     # num_unique_pfc = data_filt['description_pfc'].nunique()
 
-    _, family_filter, _ = st.columns(3)
+    _, family_filter, _ = st.columns([1, 2, 1])
     product_family = family_filter.selectbox("Select Family Name:", unique_pfc, index=0)
     
     top_part_numbers = get_top_part_numbers(df=data_filt, pf=product_family)
