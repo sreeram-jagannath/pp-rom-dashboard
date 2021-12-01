@@ -7,7 +7,11 @@ import plotly.graph_objects as go
 from millify import millify
 from plotly.subplots import make_subplots
 
-st.set_page_config(layout="wide")
+st.set_page_config(
+    page_title='Parts Pricing Romania',
+    page_icon=':car:',
+    layout="wide",
+)
 
 @st.cache(show_spinner=False, allow_output_mutation=True)
 def get_data():
@@ -546,7 +550,8 @@ if __name__ == "__main__":
     # top_parts, box_dist = st.columns([1.5, 1])
     # st.dataframe(get_demand_price_df(df=data_filt, pn=part_number))
     top_parts_in_family = get_top_parts_df_in_family(df=data_filt, pn_list=top_part_numbers[:20])
-    st.dataframe(top_parts_in_family, height=400)
+    _, parts_df, _ = st.columns([1, 8, 1])
+    parts_df.dataframe(top_parts_in_family, height=400)
     _, df_caption, _ = st.columns([2, 2, 1])
     df_caption.caption('Top 20 part numbers in the family by revenue')
     
