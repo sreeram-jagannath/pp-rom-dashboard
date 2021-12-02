@@ -77,7 +77,8 @@ def get_demand_price_df(df, pn):
 
 # gets all months demand and price by filling zero for the months we don't have data
 def get_all_months_demand_price_df(df):
-    all_months = pd.date_range(start='2019-07-01', end='2021-11-01', freq='MS')
+    mn_date, mx_date = df['conf_month'].min(), df['conf_month'].max()
+    all_months = pd.date_range(start=mn_date, end=mx_date, freq='MS')
     # print(df)
     df2 = (
         df
