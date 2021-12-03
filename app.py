@@ -15,7 +15,7 @@ st.set_page_config(
 
 @st.cache(show_spinner=False, allow_output_mutation=True)
 def get_data():
-    data = pd.read_csv('reconciled_data.csv') 
+    data = pd.read_csv('./data/reconciled_data.csv') 
     data['quotation_confirmation_date_from_tme'] = pd.to_datetime(data['quotation_confirmation_date_from_tme'])
     data['purchase_order_date'] = pd.to_datetime(data['purchase_order_date'])
     
