@@ -2,3 +2,4 @@ streamlit
 pyjanitor
 plotly
 millify
+openpyxl
