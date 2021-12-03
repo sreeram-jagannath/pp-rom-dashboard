@@ -15,7 +15,7 @@ st.set_page_config(
 
 @st.cache(show_spinner=False, allow_output_mutation=True)
 def get_data():
-    data = pd.read_csv('merged_data.csv') 
+    data = pd.read_csv('./data/merged_data.csv') 
     data['quotation_confirmation_date_from_tme'] = pd.to_datetime(data['quotation_confirmation_date_from_tme'], dayfirst=True)
     
     data['per_unit_rrp_ron'] = data['recommended_rp_ron'] / data['quantity']
