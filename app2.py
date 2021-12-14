@@ -491,11 +491,11 @@ def get_family_frequent_pie_chart(df):
 
 if __name__ == "__main__":
 
-    _, table_name, _ = st.columns([2, 2, 1])
-    table_name.caption('Data table name: parts_pricing_romania.transactions_data')
-
     data = get_data()
-    # st.dataframe(data.head())
+
+    _, table_name, _, data_shape, _ = st.columns([1, 3, 1, 2, 1])
+    table_name.caption('Data table name: parts_pricing_romania.transactions_data')
+    data_shape.caption(f'Dataframe shape: {data.shape[0]} x {data.shape[1]}')
 
     min_date = data['quotation_confirmation_date_from_tme'].min().date()
     max_date = data['quotation_confirmation_date_from_tme'].max().date()
