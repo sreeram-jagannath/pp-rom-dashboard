@@ -197,12 +197,12 @@ def get_actuals_vs_pred_plot(df, fam):
 
 
     fig.update_layout(
-        title={
-            'text': f'Actual vs. Predicted quantities',
-            'y': 0.85,
-            'x': 0.5,
-            # 'font_size': 20,
-        },
+        # title={
+        #     'text': f'Actual vs. Predicted quantities',
+        #     'y': 0.85,
+        #     'x': 0.5,
+        #     # 'font_size': 20,
+        # },
         xaxis_title='',
         yaxis_title='Quantity',
     )
@@ -260,6 +260,9 @@ def download_as_excel(df):
 
 if __name__ == "__main__":
 
+    _, title_col, _ = st.columns([2, 2, 1])
+    title_col.title('Results from Model')
+
     # summary_df, preds_df = get_results_data()
     upload1, upload2 = st.columns(2)
     preds_file = upload1.file_uploader("Upload the Prediction file")
@@ -272,12 +275,23 @@ if __name__ == "__main__":
 
         fam_elast, final_elast = get_fam_and_part_num_elasticities(summary_df=summary_df)
 
+        total_families = final_elast['Family'].nunique()
+        total_part_nums = final_elast['Part Number'].nunique()
+
         fam_metrics = get_family_metrics(preds_df=preds_df, fam_elasticity=fam_elast)
         final_fam_metrics = get_additional_family_metrics(fm=fam_metrics, fin_elast=final_elast)
 
+        _, sep_col0, _ = st.columns([2.5, 2, 1])
+        sep_col0.header('Overview')
+
+        _, metric_col1, metric_col2, _ = st.columns([2, 2, 2, 1])
+        metric_col1.metric('# Family', total_families)
+        metric_col2.metric('# Part Nums', total_part_nums)
+
+
         df1, df2 = st.columns([1.2, 3])
-        df1.subheader('Part Number Elasticities')
-        df2.subheader('Family Metrics')
+        df1.caption('Part Number Elasticities')
+        df2.caption('Family Metrics')
         
         df1.dataframe(final_elast)
         df2.dataframe(final_fam_metrics)
@@ -296,7 +310,9 @@ if __name__ == "__main__":
             file_name='family_metrics.xlsx',
         )
 
-        # st.dataframe(final_elast)
+
+        _, sep_col1, _ = st.columns([2, 2, 1])
+        sep_col1.header('Scatter plot of family elasticity')
 
         scatter_filter, scatter_plot = st.columns([1, 3])
 
@@ -310,6 +326,9 @@ if __name__ == "__main__":
 
         elasticity_scatter = get_elasticity_scatterplot(df=final_fam_metrics, y_var=y_variable)
         scatter_plot.plotly_chart(elasticity_scatter, use_container_width=True)
+
+        _, sep_col2, _ = st.columns([2, 2, 1])
+        sep_col2.header('Actual vs. Predicted')
 
         unique_family_names = preds_df['family'].unique().tolist()
 
