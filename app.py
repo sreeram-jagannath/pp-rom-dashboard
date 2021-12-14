@@ -15,9 +15,16 @@ st.set_page_config(
 
 @st.cache(show_spinner=False, allow_output_mutation=True)
 def get_data():
-    data = pd.read_csv('./data/reconciled_data.csv') 
+    data = pd.read_csv('./data/reconciled_data_v4.csv') 
     data['quotation_confirmation_date_from_tme'] = pd.to_datetime(data['quotation_confirmation_date_from_tme'])
     data['purchase_order_date'] = pd.to_datetime(data['purchase_order_date'])
+
+    rename_cols = {
+        'unit_price_euro': 'unit_purchase_price_eur',
+        'amount_in_local_currency_ron': 'total_purchase_price_ron',
+    }
+
+    data = data.rename(columns=rename_cols)
     
     return data
 
@@ -482,8 +489,12 @@ def get_family_frequent_pie_chart(df):
 if __name__ == "__main__":
 
     data = get_data()
-    # st.dataframe(data.head())
 
+    _, table_name, _, data_shape, _ = st.columns([1, 3, 1, 2, 1])
+    table_name.caption('Table Name: parts_pricing_romania.reconciled_data_v4')
+    data_shape.caption(f'Dataframe shape: {data.shape[0]} x {data.shape[1]}')
+    
+    
     min_date = data['quotation_confirmation_date_from_tme'].min().date()
     max_date = data['quotation_confirmation_date_from_tme'].max().date()
 
