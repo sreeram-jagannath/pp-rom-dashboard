@@ -3,3 +3,4 @@ pyjanitor
 plotly
 millify
 openpyxl
+xlsxwriter
