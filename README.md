@@ -4,7 +4,7 @@ Streamlit dashboard
 
 ### Steps
 - install libraries in requirements.txt
-- place the data file (name it as `reconciled_data.csv`) in the same location as `app.py`
+- place the data file (name it as `reconciled_data_v4.csv`) in the same location as `app.py`
 - type `run` in command prompt
 
 ### Folder structure
