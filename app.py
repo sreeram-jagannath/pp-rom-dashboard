@@ -15,11 +15,16 @@ st.set_page_config(
 
 @st.cache(show_spinner=False, allow_output_mutation=True)
 def get_data():
-    data = pd.read_csv('./data/merged_data.csv') 
-    data['quotation_confirmation_date_from_tme'] = pd.to_datetime(data['quotation_confirmation_date_from_tme'], dayfirst=True)
-    
-    data['per_unit_rrp_ron'] = data['recommended_rp_ron'] / data['quantity']
-    data['per_unit_dnp_ron'] = data['dealer_np_ron'] / data['quantity']   
+    data = pd.read_csv('./data/reconciled_data_v4.csv') 
+    data['quotation_confirmation_date_from_tme'] = pd.to_datetime(data['quotation_confirmation_date_from_tme'])
+    data['purchase_order_date'] = pd.to_datetime(data['purchase_order_date'])
+
+    rename_cols = {
+        'unit_price_euro': 'unit_purchase_price_eur',
+        'amount_in_local_currency_ron': 'total_purchase_price_ron',
+    }
+
+    data = data.rename(columns=rename_cols)
     
     return data
 
@@ -44,20 +49,20 @@ def get_demand_price_df(df, pn):
         'material_number',
         'conf_month',
     ]
-
+    
     agg_map = {
         'quantity': 'sum',
         'description_ro': 'first',
         'description_pfc': 'first',
         'unit_purchase_price_eur': 'mean',
-        'recommended_rp_ron': 'sum',
-        'dealer_np_ron': 'sum',
+        'per_unit_rrp_ron': 'mean',
+        'per_unit_dnp_ron': 'mean',
     }
-
+    
     rename_cols = {
         'quantity': 'Quantity',
-        'recommended_rp_per_unit_ron': 'MRRP per unit',
-        'dealer_np_per_unit_ron': 'DNP per unit',
+        'per_unit_rrp_ron': 'MRRP per unit',
+        'per_unit_dnp_ron': 'DNP per unit',
         'description_ro': 'Part Name',
         'description_pfc': 'Part Family',
     }
@@ -70,10 +75,6 @@ def get_demand_price_df(df, pn):
         .groupby(groupby_cols)
         .agg(agg_map)
         .reset_index()
-        .assign(
-            recommended_rp_per_unit_ron = lambda x: x['recommended_rp_ron'] / x['quantity'],
-            dealer_np_per_unit_ron = lambda x: x['dealer_np_ron'] / x['quantity'],
-        )
         .change_type('conf_month', 'datetime64')
         .sort_values(by='conf_month')
         .rename(columns=rename_cols)
@@ -83,7 +84,8 @@ def get_demand_price_df(df, pn):
 
 # gets all months demand and price by filling zero for the months we don't have data
 def get_all_months_demand_price_df(df):
-    all_months = pd.date_range(start='2019-07-01', end='2021-11-01', freq='MS')
+    mn_date, mx_date = df['conf_month'].min(), df['conf_month'].max()
+    all_months = pd.date_range(start=mn_date, end=mx_date, freq='MS')
     # print(df)
     df2 = (
         df
@@ -164,7 +166,8 @@ def get_part_name_family(df, pn):
 # filter the dataframe for the given data range
 def get_date_filtered_data(df, date_range):
     mn_date, mx_date = date_range
-    filt_df = df.query('@mn_date <= quotation_confirmation_date_from_tme <= @mx_date')
+    mask = df['quotation_confirmation_date_from_tme'].dt.date.between(mn_date, mx_date)
+    filt_df = df.loc[mask].copy()
     return filt_df
 
 # get box plot of price distributions for a part family
@@ -487,12 +490,16 @@ if __name__ == "__main__":
 
     data = get_data()
 
+    _, table_name, _, data_shape, _ = st.columns([1, 3, 1, 2, 1])
+    table_name.caption('Table Name: parts_pricing_romania.reconciled_data_v4')
+    data_shape.caption(f'Dataframe shape: {data.shape[0]} x {data.shape[1]}')
+    
+    
     min_date = data['quotation_confirmation_date_from_tme'].min().date()
     max_date = data['quotation_confirmation_date_from_tme'].max().date()
+
     date_range = st.slider('Date Range', min_date, max_date, (min_date, max_date))
-    # print(date_range)
     data_filt = get_date_filtered_data(df=data, date_range=date_range)
-    # st.write(data_filt.shape)
 
     st.markdown(f"<h2 style='text-align: center;'>Overall Stats</h2>", unsafe_allow_html=True)
 
@@ -524,7 +531,7 @@ if __name__ == "__main__":
 
     # num_unique_pfc = data_filt['description_pfc'].nunique()
 
-    _, family_filter, _ = st.columns(3)
+    _, family_filter, _ = st.columns([1, 2, 1])
     product_family = family_filter.selectbox("Select Family Name:", unique_pfc, index=0)
     
     top_part_numbers = get_top_part_numbers(df=data_filt, pf=product_family)
@@ -593,7 +600,8 @@ if __name__ == "__main__":
         st.markdown(f"<h2 style='text-align: center;'>Market Basket Analysis</h2>", unsafe_allow_html=True)
         st.success(f'Which part numbers are transacted together with material number {part_number}?')
         combinations = get_frequent_combinations(data_filt, pn=part_number, pn_trans=part_num_transactions)
-        st.dataframe(combinations)
+        _, comb_df_col, _ = st.columns([1, 8, 1])
+        comb_df_col.dataframe(combinations)
         
         comb_pie = get_frequent_pie_chart(combinations)
         st.plotly_chart(comb_pie, use_container_width=True)
