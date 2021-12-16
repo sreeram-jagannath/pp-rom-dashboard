@@ -261,6 +261,11 @@ def get_distribution_plot_of_elasticties(df, fam):
         color='Family',
     )
 
+    fig.update_layout(
+        xaxis_title='',
+        showlegend=False,
+    )
+
     return fig
 
 
@@ -333,19 +338,28 @@ if __name__ == "__main__":
         elasticity_scatter = get_elasticity_scatterplot(df=final_fam_metrics, y_var=y_variable)
         scatter_plot.plotly_chart(elasticity_scatter, use_container_width=True)
 
+        unique_family_names = preds_df['family'].unique().tolist()
+
+        _, sep_col2, _ = st.columns([2, 2, 1])
+        sep_col2.header('Distribution of Elasticities')
+
+        fam_multiselect = st.multiselect(
+            'Families', 
+            options=unique_family_names, 
+            default=unique_family_names[:10],
+        )
+
+        elasticity_box_plot = get_distribution_plot_of_elasticties(final_elast, fam=fam_multiselect)
+        st.plotly_chart(elasticity_box_plot, use_container_width=True)
+
         _, sep_col2, _ = st.columns([2, 2, 1])
         sep_col2.header('Actual vs. Predicted')
 
-        unique_family_names = preds_df['family'].unique().tolist()
-
-        elasticity_box_plot = get_distribution_plot_of_elasticties(final_elast, fam=unique_family_names)
-        st.plotly_chart(elasticity_box_plot, use_container_width=True)
-
-        # _, family_filter, _ = st.columns(3)
-        # family_name = family_filter.selectbox('Family Name', unique_family_names, index=0)
+        _, family_filter, _ = st.columns(3)
+        family_name = family_filter.selectbox('Family Name', unique_family_names, index=0)
         
-        # act_pred_plot = get_actuals_vs_pred_plot(df=preds_df, fam=family_name)
-        # st.plotly_chart(act_pred_plot, use_container_width=True)
+        act_pred_plot = get_actuals_vs_pred_plot(df=preds_df, fam=family_name)
+        st.plotly_chart(act_pred_plot, use_container_width=True)
 
     else:
         st.warning(
