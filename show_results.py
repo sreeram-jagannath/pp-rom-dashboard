@@ -170,6 +170,8 @@ def get_additional_family_metrics(fm, fin_elast):
     fm3 = pd.merge(fm2, parts_in_modelling, on='Family', how='left')
     fm4 = pd.merge(fm3, profit_percentage, on='Family', how='left')
 
+    fm4 = fm4.drop_duplicates().reset_index(drop=True)
+
     return fm4
 
 
@@ -337,7 +339,132 @@ if __name__ == "__main__":
         
         act_pred_plot = get_actuals_vs_pred_plot(df=preds_df, fam=family_name)
         st.plotly_chart(act_pred_plot, use_container_width=True)
-        
 
     else:
-        st.warning('Please upload the predicitions file and the summary file')
+        st.warning(
+            '''Please upload the predicitions file and the 
+            summary file and ensure that they are in 
+            same format as shown below'''
+        )   
+
+        sample1, sample2 = st.columns([1, 2])
+
+        preds_dict = {
+            "ym": {
+                "0": "2019-07-01",
+                "1": "2019-08-01",
+                "2": "2019-09-01",
+                "3": "2019-10-01",
+                "4": "2019-11-01"
+            },
+            "family": {
+                "0": "Engine Oil",
+                "1": "Engine Oil",
+                "2": "Engine Oil",
+                "3": "Engine Oil",
+                "4": "Engine Oil"
+            },
+            "units": {
+                "0": 14204,
+                "1": 9492,
+                "2": 13076,
+                "3": 6563,
+                "4": 7781
+            },
+            "preds": {
+                "0": 6169.2257148815415,
+                "1": 9941.680144786093,
+                "2": 8872.66768479531,
+                "3": 7667.19063800542,
+                "4": 7611.111236252852
+            }
+        }
+
+        summary_dict = {
+            "index": {
+                "0": "Intercept",
+                "1": "month_name[Aug]",
+                "2": "month_name[Dec]",
+                "3": "month_name[Feb]",
+                "4": "month_name[Jan]"
+            },
+            "mean": {
+                "0": 9.618,
+                "1": 0.242,
+                "2": 0.346,
+                "3": -0.172,
+                "4": -0.349
+            },
+            "sd": {
+                "0": 2.165,
+                "1": 0.18,
+                "2": 0.192,
+                "3": 0.217,
+                "4": 0.204
+            },
+            "hdi_3%": {
+                "0": 5.858,
+                "1": -0.124,
+                "2": -0.023,
+                "3": -0.489,
+                "4": -0.757
+            },
+            "hdi_97%": {
+                "0": 13.113,
+                "1": 0.588,
+                "2": 0.736,
+                "3": 0.27,
+                "4": 0.073
+            },
+            "mcse_mean": {
+                "0": 1.28,
+                "1": 0.009,
+                "2": 0.009,
+                "3": 0.079,
+                "4": 0.02
+            },
+            "mcse_sd": {
+                "0": 1.072,
+                "1": 0.007,
+                "2": 0.006,
+                "3": 0.058,
+                "4": 0.015
+            },
+            "ess_bulk": {
+                "0": 3,
+                "1": 302,
+                "2": 297,
+                "3": 8,
+                "4": 68
+            },
+            "ess_tail": {
+                "0": 12,
+                "1": 972,
+                "2": 711,
+                "3": 266,
+                "4": 48
+            },
+            "r_hat": {
+                "0": 1.64,
+                "1": 1.2,
+                "2": 1.11,
+                "3": 1.18,
+                "4": 1.13
+            },
+            "FAMILY": {
+                "0": "Engine Oil",
+                "1": "Engine Oil",
+                "2": "Engine Oil",
+                "3": "Engine Oil",
+                "4": "Engine Oil"
+            }
+        }
+
+        preds_sample_df = pd.DataFrame.from_dict(preds_dict)
+        summ_sample_df = pd.DataFrame.from_dict(summary_dict)
+
+        sample1.subheader('Sample Predictions file')
+        sample1.dataframe(preds_sample_df)
+
+        sample2.subheader('Sample Summary file')
+        sample2.dataframe(summ_sample_df)
