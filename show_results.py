@@ -253,11 +253,15 @@ def download_as_excel(df):
     return processed_data
 
 
-# def display_two_dataframe(st_col, df, name):
-#     file_name = '_'.join(name.split().lower())
+def get_distribution_plot_of_elasticties(df, fam):
+    fig = px.box(
+        data_frame=df,
+        x='Family',
+        y='Elasticity',
+        color='Family',
+    )
 
-#     st_col.subheader(name)
-#     st_col.dataframe(df)
+    return fig
 
 
 if __name__ == "__main__":
@@ -334,11 +338,14 @@ if __name__ == "__main__":
 
         unique_family_names = preds_df['family'].unique().tolist()
 
-        _, family_filter, _ = st.columns(3)
-        family_name = family_filter.selectbox('Family Name', unique_family_names, index=0)
+        elasticity_box_plot = get_distribution_plot_of_elasticties(final_elast, fam=unique_family_names)
+        st.plotly_chart(elasticity_box_plot, use_container_width=True)
+
+        # _, family_filter, _ = st.columns(3)
+        # family_name = family_filter.selectbox('Family Name', unique_family_names, index=0)
         
-        act_pred_plot = get_actuals_vs_pred_plot(df=preds_df, fam=family_name)
-        st.plotly_chart(act_pred_plot, use_container_width=True)
+        # act_pred_plot = get_actuals_vs_pred_plot(df=preds_df, fam=family_name)
+        # st.plotly_chart(act_pred_plot, use_container_width=True)
 
     else:
         st.warning(
