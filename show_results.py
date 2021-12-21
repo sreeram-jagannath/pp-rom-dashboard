@@ -6,9 +6,10 @@ import plotly.graph_objects as go
 
 from io import BytesIO
 
-from millify import millify
+from functools import reduce
 from plotly.subplots import make_subplots
 from sklearn.metrics import mean_absolute_percentage_error, r2_score
+from streamlit.elements.arrow import _trim_pandas_styles
 
 st.set_page_config(
     page_title='Model Results',
@@ -149,6 +150,45 @@ def get_profit_percentage(trans, fin_elast):
 
     return profit_percentage
 
+
+def get_mean_mrrp_family(df):
+    rename_cols = {
+        'description_pfc': 'Family',
+        'per_unit_rrp_ron': 'Mean MRRP'
+    }
+    mean_mrrp = (
+        df
+        .groupby('description_pfc')
+        .mean()['per_unit_rrp_ron']
+        .reset_index()
+        .rename(columns=rename_cols)
+    )
+
+    return mean_mrrp
+
+def get_mean_dnp_family(df):
+    rename_cols = {
+        'description_pfc': 'Family',
+        'per_unit_dnp_ron': 'Mean DNP'
+    }
+    mean_mrrp = (
+        df
+        .groupby('description_pfc')
+        .mean()['per_unit_dnp_ron']
+        .reset_index()
+        .rename(columns=rename_cols)
+    )
+
+    return mean_mrrp
+
+
+def merge_multiple_dataframes(dfs):
+    # solution 2
+    result_2 = reduce(lambda df_left, df_right: pd.merge(df_left, df_right, 
+                                                left_index=True, right_index=True, 
+                                                how='left'), 
+                    dfs)
+
 @st.cache(show_spinner=False, allow_output_mutation=True)
 def get_additional_family_metrics(fm, fin_elast):
     comp = (
@@ -164,15 +204,19 @@ def get_additional_family_metrics(fm, fin_elast):
     total_parts_in_family = get_total_part_num_in_family(df=trans_data)
     parts_in_modelling = get_num_of_parts_in_modelling(df=fin_elast)
     profit_percentage = get_profit_percentage(trans=trans_data, fin_elast=fin_elast)
+    mean_mrrp = get_mean_mrrp_family(df=trans_data)
+    mean_dnp = get_mean_dnp_family(df=trans_data)
 
     fm1 = pd.merge(fm, comp, on='Family', how='left')
     fm2 = pd.merge(fm1, total_parts_in_family, on='Family', how='left')
     fm3 = pd.merge(fm2, parts_in_modelling, on='Family', how='left')
     fm4 = pd.merge(fm3, profit_percentage, on='Family', how='left')
+    fm5 = pd.merge(fm4, mean_mrrp, on='Family', how='left')
+    fm6 = pd.merge(fm5, mean_dnp, on='Family', how='left')
 
-    fm4 = fm4.drop_duplicates().reset_index(drop=True)
+    fm6 = fm6.drop_duplicates().reset_index(drop=True)
 
-    return fm4
+    return fm6
 
 
 def get_actuals_vs_pred_plot(df, fam):
@@ -220,11 +264,15 @@ def get_elasticity_scatterplot(df, y_var):
         color='Competitive Type',
         symbol='Competitive Type',
         hover_name='Family',
+        text='Family',
     )
 
     fig.update_traces(
-        marker={ 'size': 15 }
+        marker={ 'size': 15 },
+        textposition='bottom center',
     )
+
+    fig.layout.legend.tracegroupgap = 15
 
     return fig
 
@@ -235,17 +283,17 @@ def download_as_excel(df):
     output = BytesIO()
     writer = pd.ExcelWriter(output, engine='xlsxwriter')
     df.to_excel(writer, index=False, sheet_name='Sheet1')
-    workbook = writer.book
+
     worksheet = writer.sheets['Sheet1']
     
     # format1 = workbook.add_format({'num_format': '0.000'}) 
-    worksheet.set_column(0, df.shape[0] - 1, 15) 
+    worksheet.set_column(0, df.shape[0], 15) 
     
     worksheet.add_table(0, 0, df.shape[0], df.shape[1]-1, {
         'columns': col_names,
         # 'style' = option Format as table value and is case sensitive 
         # (look at the exact name into Excel)
-        'style': 'Table Style Medium 5'
+        'style': 'Table Style Medium 4'
     })
     
     writer.save()
