@@ -3,8 +3,8 @@
 Streamlit dashboard
 
 ### Steps
+- create a virtual environment
 - install libraries in requirements.txt
-- place the data file (name it as `reconciled_data_v4.csv`) in the same location as `app.py`
 - type `run` in command prompt
 
 ### Folder structure
